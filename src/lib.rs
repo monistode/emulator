@@ -1,4 +1,5 @@
 pub mod arithmetic;
+pub mod cisc_processor;
 pub mod common;
 pub mod executable;
 pub mod flag_register;

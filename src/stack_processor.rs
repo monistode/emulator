@@ -333,7 +333,7 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
                     self.text_memory[(segment.metadata().start + i) as usize] =
                         u6::new(segment.tightly_packed_array::<u8>().at(i as usize));
                 }
-            } else {
+            } else if segment.metadata().flags.readable {
                 if segment.metadata().byte_size != 8 {
                     panic!("Invalid executable");
                 }

@@ -1,6 +1,6 @@
 [package]
 name = "monistode-emulator"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "An emulator for the monistode set of ISA's"
 license = "MIT"

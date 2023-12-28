@@ -21,6 +21,6 @@ impl ExecutableSegmentMetadata {
     }
 
     pub fn disk_size(&self) -> u32 {
-        (self.size * 8 + self.byte_size - 1) / self.byte_size
+        (self.size * self.byte_size + 7) / 8
     }
 }

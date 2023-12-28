@@ -320,14 +320,14 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
         }
     }
 
-    fn load_executable(&mut self, executable: &Executable) {
+    fn load_executable(&mut self, executable: &Executable) -> Result<(), String> {
         if !executable.header.harvard {
-            panic!("Invalid executable");
+            return Err("Executable is not harvard architecture".to_string());
         }
         for segment in executable.segments() {
             if segment.metadata().flags.executable {
                 if segment.metadata().byte_size != 6 {
-                    panic!("Invalid executable");
+                    return Err("Executable segment byte is not 6 bits wide".to_string());
                 }
                 for i in 0..segment.metadata().vsize {
                     self.text_memory[(segment.metadata().start + i) as usize] =
@@ -335,7 +335,7 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
                 }
             } else if segment.metadata().flags.readable {
                 if segment.metadata().byte_size != 8 {
-                    panic!("Invalid executable");
+                    return Err("Data segment byte is not 8 bits wide".to_string());
                 }
                 for i in 0..segment.metadata().vsize {
                     self.data_memory[(segment.metadata().start + i) as usize] =
@@ -344,5 +344,6 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
             }
         }
         self.registers.pc = executable.header.entry_point as u16;
+        Ok(())
     }
 }

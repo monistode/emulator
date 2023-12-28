@@ -77,14 +77,14 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
         }
     }
 
-    fn load_executable(&mut self, executable: &Executable) {
+    fn load_executable(&mut self, executable: &Executable) -> Result<(), String> {
         if executable.header.harvard {
-            panic!("Invalid executable");
+            return Err("Harvard architecture not supported".to_string());
         }
         for segment in executable.segments() {
             if segment.metadata().flags.readable {
                 if segment.metadata().byte_size != 8 {
-                    panic!("Invalid executable");
+                    return Err("Only 8-bit bytes are supported".to_string());
                 }
                 for i in 0..segment.metadata().vsize {
                     self.memory[(segment.metadata().start + i) as usize] =
@@ -93,5 +93,6 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
             }
         }
         self.registers.pc = executable.header.entry_point as u16;
+        Ok(())
     }
 }

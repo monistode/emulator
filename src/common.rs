@@ -8,7 +8,7 @@ pub trait Processor<Byte, Pc, IOPort, IOItem> {
     where
         T: Fn(IOPort, IOItem),
         U: Fn(IOPort) -> IOItem;
-    fn load_executable(&mut self, executable: &Executable);
+    fn load_executable(&mut self, executable: &Executable) -> Result<(), String>;
 }
 
 pub enum ProcessorContinue {

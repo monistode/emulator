@@ -20,7 +20,6 @@ pub struct CiscRegisters {
     pub pc: u16,
     pub fr: CiscProcessorFlagRegister,
     pub r: [u16; 4],
-    pub m: [u16; 3],
     pub bp: u16,
     pub sp: u16,
 }
@@ -38,7 +37,6 @@ impl CiscProcessor {
                 pc: 0,
                 fr: CiscProcessorFlagRegister::new(),
                 r: [0; 4],
-                m: [0; 3],
                 bp: 0,
                 sp: 1024,
             },

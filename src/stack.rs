@@ -13,6 +13,7 @@ pub trait Stack<T> {
     fn push(&mut self, value: T);
     fn pop(&mut self) -> T;
     fn peek(&self) -> T;
+    fn peek_down_by(&self, n: u8) -> T;
 }
 
 pub struct TwoByteStack<'a, T: 'a, U, V>
@@ -75,6 +76,17 @@ where
     #[inline]
     fn peek(&self) -> <T::Output as DoublablePrecision>::DoublePrecision {
         self.data.read(*self.pointer)
+    }
+
+    #[inline]
+    fn peek_down_by(&self, offset: u8) -> <T::Output as DoublablePrecision>::DoublePrecision {
+        let mut pointer = *self.pointer;
+        if self.downward {
+            pointer = pointer.wrapping_add(&U::from(offset));
+        } else {
+            pointer = pointer.wrapping_sub(&U::from(offset));
+        }
+        self.data.read(pointer)
     }
 }
 

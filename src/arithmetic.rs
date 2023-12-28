@@ -4,13 +4,37 @@ use num_traits::{
     ops::overflowing::{OverflowingAdd, OverflowingMul, OverflowingSub},
     Zero,
 };
+use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 pub trait ArithmeticOperand:
-    OverflowingAdd + OverflowingSub + OverflowingMul + Zero + PartialEq + ToSigned
+    Zero
+    + PartialEq
+    + ToSigned
+    + OverflowingAdd
+    + OverflowingSub
+    + OverflowingMul
+    + BitAnd<Self, Output = Self>
+    + BitOr<Self, Output = Self>
+    + BitXor<Self, Output = Self>
+    + Not<Output = Self>
+    + Shl<Self, Output = Self>
+    + Shr<Self, Output = Self>
 {
 }
-impl<T: OverflowingAdd + OverflowingSub + OverflowingMul + Zero + PartialEq + ToSigned>
-    ArithmeticOperand for T
+impl<
+        T: Zero
+            + PartialEq
+            + ToSigned
+            + OverflowingAdd
+            + OverflowingSub
+            + OverflowingMul
+            + BitAnd<T, Output = T>
+            + BitOr<T, Output = T>
+            + BitXor<T, Output = T>
+            + Not<Output = T>
+            + Shl<T, Output = T>
+            + Shr<T, Output = T>,
+    > ArithmeticOperand for T
 {
 }
 
@@ -111,4 +135,86 @@ where
     flags.set_zf_if_zero(&a);
 
     a / b
+}
+
+#[inline]
+pub fn and<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a & b;
+    flags.reset();
+    flags.set_zf_if_zero(&result);
+    flags.set_sf_if_negative(&result);
+
+    result
+}
+
+#[inline]
+pub fn or<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a | b;
+    flags.reset();
+    flags.set_zf_if_zero(&result);
+    flags.set_sf_if_negative(&result);
+
+    result
+}
+
+#[inline]
+pub fn xor<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a ^ b;
+    flags.reset();
+    flags.set_zf_if_zero(&result);
+    flags.set_sf_if_negative(&result);
+
+    result
+}
+
+#[inline]
+pub fn not<T, U>(flags: &mut U, a: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = !a;
+    flags.reset();
+    flags.set_zf_if_zero(&result);
+    flags.set_if(!flags.get(ProcessorFlags::SF), ProcessorFlags::SF);
+
+    result
+}
+
+#[inline]
+pub fn shl<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a << b;
+    flags.reset();
+    // TODO
+
+    result
+}
+
+#[inline]
+pub fn shr<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a >> b;
+    flags.reset();
+    // TODO
+
+    result
 }

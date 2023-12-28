@@ -7,6 +7,7 @@ pub enum ProcessorFlags {
 
 pub trait FlagRegister {
     fn set(&mut self, flag: ProcessorFlags);
+    fn get(&self, flag: ProcessorFlags) -> bool;
     fn clear(&mut self, flag: ProcessorFlags);
     fn is_set(&self, flag: ProcessorFlags) -> bool;
     fn is_clear(&self, flag: ProcessorFlags) -> bool;
@@ -36,6 +37,10 @@ macro_rules! implement_flag_register {
             #[inline]
             fn set(&mut self, flag: ProcessorFlags) {
                 self.0 |= flag as $type;
+            }
+
+            fn get(&self, flag: ProcessorFlags) -> bool {
+                self.0 & (flag as $type) != 0
             }
 
             #[inline]

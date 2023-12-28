@@ -40,12 +40,12 @@ impl CiscProcessor {
                 r: [0; 4],
                 m: [0; 3],
                 bp: 0,
-                sp: 0,
+                sp: 1024,
             },
         }
     }
 
-    two_byte_stack!(memory_stack[sp: u16] -> u8, based on memory);
+    two_byte_stack!(memory_stack[sp: u16] -> u8, based on memory, growing downward);
 }
 
 impl Processor<u8, u16, u16, u16> for CiscProcessor {

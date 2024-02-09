@@ -13,5 +13,6 @@ pub trait Processor<Byte, Pc, IOPort, IOItem> {
 
 pub enum ProcessorContinue {
     KeepRunning,
+    Error,
     Halt,
 }

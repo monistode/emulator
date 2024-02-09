@@ -83,6 +83,60 @@ where
 }
 
 #[inline]
+pub fn inc<T, U>(flags: &mut U, a: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a.overflowing_add(&T::one());
+    flags.reset();
+    flags.set_if(result.1, ProcessorFlags::CF);
+    flags.set_if(
+        a.as_signed().overflowing_add(&T::one().as_signed()).1,
+        ProcessorFlags::OF,
+    );
+    flags.set_zf_if_zero(&result.0);
+    flags.set_sf_if_negative(&result.0);
+
+    result.0
+}
+
+#[inline]
+pub fn test<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a.overflowing_add(&b);
+    flags.reset();
+    flags.set_if(result.1, ProcessorFlags::CF);
+    flags.clear(ProcessorFlags::OF);
+    flags.set_zf_if_zero(&result.0);
+    flags.set_sf_if_negative(&result.0);
+
+    a
+}
+
+#[inline]
+pub fn dec<T, U>(flags: &mut U, a: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a.overflowing_sub(&T::one());
+    flags.reset();
+    flags.set_if(!result.1, ProcessorFlags::CF);
+    flags.set_if(
+        a.as_signed().overflowing_sub(&T::one().as_signed()).1,
+        ProcessorFlags::OF,
+    );
+    flags.set_zf_if_zero(&result.0);
+    flags.set_sf_if_negative(&result.0);
+
+    result.0
+}
+
+#[inline]
 pub fn sub<T, U>(flags: &mut U, a: T, b: T) -> T
 where
     T: ArithmeticOperand,
@@ -99,6 +153,25 @@ where
     flags.set_sf_if_negative(&result.0);
 
     result.0
+}
+
+#[inline]
+pub fn cmp<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let result = a.overflowing_sub(&b);
+    flags.reset();
+    flags.set_if(!result.1, ProcessorFlags::CF);
+    flags.set_if(
+        a.as_signed().overflowing_sub(&b.as_signed()).1,
+        ProcessorFlags::OF,
+    );
+    flags.set_zf_if_zero(&result.0);
+    flags.set_sf_if_negative(&result.0);
+
+    a
 }
 
 #[inline]

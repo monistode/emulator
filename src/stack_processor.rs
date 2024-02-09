@@ -171,14 +171,12 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
         U: Fn(u16) -> u16,
     {
         let next_instruction = self.next();
-        let next_instruction_as_enum =
-            Opcode::from_u8(next_instruction.into()).unwrap_or_else(|| {
-                panic!(
-                    "Unknown opcode: {:b} at address {:x}",
-                    next_instruction,
-                    self.registers.pc - 1
-                )
-            });
+        let next_instruction_as_enum = match Opcode::from_u8(next_instruction.into()) {
+            Some(opcode) => opcode,
+            None => {
+                return ProcessorContinue::Error;
+            }
+        };
 
         match next_instruction_as_enum {
             Opcode::Halt => system::halt(),

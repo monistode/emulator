@@ -111,13 +111,69 @@ macro_rules! with_register_value {
     }};
 }
 
+macro_rules! with_register_id_and_register_value {
+    ($processor:ident, $op:expr) => {{
+        let (register_id, address_register_id) = $processor.load_two_register_ids();
+        let value = match $processor.get_register_value(address_register_id) {
+            Some(value) => value,
+            None => return ProcessorContinue::Error,
+        };
+        $op(register_id, value)
+    }};
+}
+
+macro_rules! with_two_register_values {
+    ($processor:ident, $op:expr) => {{
+        let (register_id1, register_id2) = $processor.load_two_register_ids();
+        let value1 = match $processor.get_register_value(register_id1) {
+            Some(value) => value,
+            None => return ProcessorContinue::Error,
+        };
+        let value2 = match $processor.get_register_value(register_id2) {
+            Some(value) => value,
+            None => return ProcessorContinue::Error,
+        };
+        $op(value1, value2)
+    }};
+}
+
+macro_rules! with_register_id_and_register_address {
+    ($processor:ident, $op:expr) => {{
+        let (register_id, address_register_id) = $processor.load_two_register_ids();
+        let value = match $processor.get_register_value(address_register_id) {
+            Some(value) => $processor.two_byte_memory().read(value),
+            None => return ProcessorContinue::Error,
+        };
+        $op(register_id, value)
+    }};
+}
+
 macro_rules! with_register_address {
     ($processor:ident, $op:expr) => {{
         let value = $processor.load_register_address();
         match value {
-            Some(value) => $op(value),
+            Some(value) => {
+                $op(value);
+                ProcessorContinue::KeepRunning
+            }
             None => ProcessorContinue::Error,
         }
+    }};
+}
+
+macro_rules! with_register_id_and_register_address_offset {
+    ($processor:ident, $op:expr) => {{
+        let (register_id, address_register_id) = $processor.load_two_register_ids();
+        let address_register_value = match $processor.get_register_value(address_register_id) {
+            Some(value) => value,
+            None => return ProcessorContinue::Error,
+        };
+        with_immediate_raw!($processor, |immediate| {
+            let value = $processor
+                .two_byte_memory()
+                .read(address_register_value.wrapping_add(immediate));
+            $op(register_id, value)
+        })
     }};
 }
 
@@ -187,35 +243,6 @@ macro_rules! save_to_register_address {
     }};
 }
 
-macro_rules! save_optional_to_register {
-    ($processor:ident, $op:expr) => {{
-        let register_id = $processor.next();
-        let value = match $op() {
-            Some(value) => value,
-            None => return ProcessorContinue::Error,
-        };
-        match $processor.save_register(register_id, value) {
-            Ok(_) => ProcessorContinue::KeepRunning,
-            Err(_) => ProcessorContinue::Error,
-        }
-    }};
-}
-
-macro_rules! save_optional_to_register_address {
-    ($processor:ident, $op:expr) => {{
-        let address = match $processor.load_register() {
-            Some(value) => value,
-            None => return ProcessorContinue::Error,
-        };
-        let value = match $op() {
-            Some(value) => value,
-            None => return ProcessorContinue::Error,
-        };
-        $processor.two_byte_memory().write(address, value);
-        ProcessorContinue::KeepRunning
-    }};
-}
-
 macro_rules! save_to_register_address_offset {
     ($processor:ident, $op:expr) => {{
         let address = match $processor.load_register() {
@@ -272,71 +299,59 @@ implement_flag_register!(CiscProcessorFlagRegister(u8));
 
 macro_rules! arithmetic_reg_reg_addr {
     ($processor: ident, $op: expr) => {{
-        with_register_id!($processor, |register_id| {
-            with_register_address!($processor, |b| {
-                let a = match $processor.get_register_value(register_id) {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let result = $op(&mut $processor.registers.fr, a, b);
-                match $processor.save_register(register_id, result) {
-                    Ok(_) => ProcessorContinue::KeepRunning,
-                    Err(_) => ProcessorContinue::Error,
-                }
-            })
+        with_register_id_and_register_address!($processor, |register_id, b| {
+            let a = match $processor.get_register_value(register_id) {
+                Some(value) => value,
+                None => return ProcessorContinue::Error,
+            };
+            let result = $op(&mut $processor.registers.fr, a, b);
+            match $processor.save_register(register_id, result) {
+                Ok(_) => ProcessorContinue::KeepRunning,
+                Err(_) => ProcessorContinue::Error,
+            }
         })
     }};
 }
 
 macro_rules! arithmetic_reg_addr_reg {
     ($processor: ident, $op: expr) => {{
-        with_register_value!($processor, |address| {
-            with_register_value!($processor, |b| {
-                let a = $processor.two_byte_memory().read(address);
-                let result = $op(&mut $processor.registers.fr, a, b);
-                $processor.two_byte_memory().write(address, result);
-                ProcessorContinue::KeepRunning
-            })
+        with_two_register_values!($processor, |address, b| {
+            let a = $processor.two_byte_memory().read(address);
+            let result = $op(&mut $processor.registers.fr, a, b);
+            $processor.two_byte_memory().write(address, result);
+            ProcessorContinue::KeepRunning
         })
     }};
 }
 
 macro_rules! arithmetic_reg_reg {
     ($processor: ident, $op: expr) => {{
-        with_register_id!($processor, |register1_id| {
-            with_register_value!($processor, |b| {
-                let a = match $processor.get_register_value(register1_id) {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let result = $op(&mut $processor.registers.fr, a, b);
-                match $processor.save_register(register1_id, result) {
-                    Ok(_) => ProcessorContinue::KeepRunning,
-                    Err(_) => ProcessorContinue::Error,
-                }
-            })
+        with_register_id_and_register_value!($processor, |register_id, b| {
+            let a = match $processor.get_register_value(register_id) {
+                Some(value) => value,
+                None => return ProcessorContinue::Error,
+            };
+            let result = $op(&mut $processor.registers.fr, a, b);
+            match $processor.save_register(register_id, result) {
+                Ok(_) => ProcessorContinue::KeepRunning,
+                Err(_) => ProcessorContinue::Error,
+            }
         })
     }};
 }
 
 macro_rules! arithmetic_reg_reg_addr_off {
     ($processor: ident, $op: expr) => {{
-        with_register_id!($processor, |register_id| {
-            with_register_address_offset!($processor, |value_at_address| {
-                let a = match $processor.get_register_value(register_id) {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let b = match value_at_address {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let result = $op(&mut $processor.registers.fr, a, b);
-                match $processor.save_register(register_id, result) {
-                    Ok(_) => ProcessorContinue::KeepRunning,
-                    Err(_) => ProcessorContinue::Error,
-                }
-            })
+        with_register_id_and_register_address_offset!($processor, |register_id, b| {
+            let a = match $processor.get_register_value(register_id) {
+                Some(value) => value,
+                None => return ProcessorContinue::Error,
+            };
+            let result = $op(&mut $processor.registers.fr, a, b);
+            match $processor.save_register(register_id, result) {
+                Ok(_) => ProcessorContinue::KeepRunning,
+                Err(_) => ProcessorContinue::Error,
+            }
         })
     }};
 }
@@ -471,6 +486,11 @@ impl CiscProcessor {
             })
     }
 
+    fn load_two_register_ids(&mut self) -> (u8, u8) {
+        let registers = self.next();
+        return (registers >> 4, registers & 0b00001111);
+    }
+
     fn get_register_value(&self, register_id: u8) -> Option<u16> {
         self.registers
             .r
@@ -559,15 +579,40 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
         match next_instruction_as_enum {
             Opcode::Halt => ProcessorContinue::Halt,
             Opcode::MovRegImm => save_to_register!(self, || self.load_immediate()),
-            Opcode::MovRegReg => save_optional_to_register!(self, || self.load_register()),
+            Opcode::MovRegReg => {
+                with_register_id_and_register_value!(self, |destination, value| {
+                    match self.save_register(destination, value) {
+                        Ok(_) => ProcessorContinue::KeepRunning,
+                        Err(_) => ProcessorContinue::Error,
+                    }
+                })
+            }
             Opcode::MovRegRegAdr => {
-                save_optional_to_register!(self, || self.load_register_address())
+                with_register_id_and_register_address!(self, |destination, value| {
+                    match self.save_register(destination, value) {
+                        Ok(_) => ProcessorContinue::KeepRunning,
+                        Err(_) => ProcessorContinue::Error,
+                    }
+                })
             }
             Opcode::MovRegRegAdrOff => {
-                save_optional_to_register!(self, || self.load_register_address_offset())
+                with_register_id_and_register_address_offset!(self, |destination, value| {
+                    match self.save_register(destination, value) {
+                        Ok(_) => ProcessorContinue::KeepRunning,
+                        Err(_) => ProcessorContinue::Error,
+                    }
+                })
             }
             Opcode::MovRegAdrReg => {
-                save_optional_to_register_address!(self, || self.load_register())
+                let (destination, source) = self.load_two_register_ids();
+                let value = match self.get_register_value(source) {
+                    Some(value) => value,
+                    None => return ProcessorContinue::Error,
+                };
+                match self.save_register(destination, value) {
+                    Ok(_) => ProcessorContinue::KeepRunning,
+                    Err(_) => ProcessorContinue::Error,
+                }
             }
             Opcode::MovRegAdrImm => save_to_register_address!(self, || self.load_immediate()),
             Opcode::MovRegAdrOffReg => {
@@ -736,10 +781,9 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
                 )))
             }
             Opcode::OutPortRegAdr => {
-                with_immediate!(self, |port| with_register_address!(self, |address| {
-                    output(port, address);
-                    ProcessorContinue::KeepRunning
-                }))
+                with_immediate!(self, |port| with_register_address!(self, |address| output(
+                    port, address
+                )))
             }
             Opcode::OutPortRegAdrOff => {
                 with_immediate_raw!(self, |port| with_register_address_offset!(self, |value| {

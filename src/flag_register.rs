@@ -25,6 +25,7 @@ pub trait FlagRegister {
 
 macro_rules! implement_flag_register {
     ($name:ident($type:ty)) => {
+        #[derive(Debug, Clone, Copy)]
         pub struct $name(pub $type);
 
         impl $name {
@@ -61,6 +62,12 @@ macro_rules! implement_flag_register {
             #[inline]
             fn reset(&mut self) {
                 self.0 = 0;
+            }
+        }
+
+        impl Into<$type> for $name {
+            fn into(self) -> $type {
+                self.0
             }
         }
     };

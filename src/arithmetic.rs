@@ -83,6 +83,41 @@ where
 }
 
 #[inline]
+pub fn addc<T, U>(flags: &mut U, a: T, b: T) -> T
+where
+    T: ArithmeticOperand,
+    U: FlagRegister,
+{
+    let raw_sum = a.overflowing_add(&b);
+    let result = raw_sum
+        .0
+        .overflowing_add(&if flags.get(ProcessorFlags::CF) {
+            T::one()
+        } else {
+            T::zero()
+        });
+    flags.reset();
+    flags.set_if(result.1 || raw_sum.1, ProcessorFlags::CF);
+    flags.set_if(
+        a.as_signed().overflowing_add(&b.as_signed()).1
+            || a.as_signed()
+                .overflowing_add(&b.as_signed())
+                .0
+                .overflowing_add(&if flags.get(ProcessorFlags::CF) {
+                    T::one().as_signed()
+                } else {
+                    T::zero().as_signed()
+                })
+                .1,
+        ProcessorFlags::OF,
+    );
+    flags.set_zf_if_zero(&result.0);
+    flags.set_sf_if_negative(&result.0);
+
+    result.0
+}
+
+#[inline]
 pub fn inc<T, U>(flags: &mut U, a: T) -> T
 where
     T: ArithmeticOperand,

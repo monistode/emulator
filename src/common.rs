@@ -1,4 +1,4 @@
-use crate::executable::executable::Executable;
+use monistode_binutils::Executable;
 
 pub trait Processor<Byte, Pc, IOPort, IOItem> {
     fn next(&mut self) -> Byte;

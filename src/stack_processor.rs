@@ -1,4 +1,6 @@
-use crate::executable::executable::Executable;
+use monistode_binutils::{Architecture, Executable};
+
+use crate::tightly_packed_array;
 
 use super::{
     arithmetic,
@@ -319,29 +321,28 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
     }
 
     fn load_executable(&mut self, executable: &Executable) -> Result<(), String> {
-        if !executable.header.harvard {
-            return Err("Executable is not harvard architecture".to_string());
+        // if !executable.header.harvard {
+        //     return Err("Executable is not harvard architecture".to_string());
+        // }
+        if !matches!(executable.architecture(), Architecture::Stack) {
+            return Err("Executable is not stack architecture".to_string());
         }
         for segment in executable.segments() {
-            if segment.metadata().flags.executable {
-                if segment.metadata().byte_size != 6 {
-                    return Err("Executable segment byte is not 6 bits wide".to_string());
+            if segment.flags.executable {
+                let array = tightly_packed_array::TightlyPackedArray::new(segment.data.clone(), 6);
+                // TODO why copy
+                for i in 0..segment.address_space_size {
+                    self.text_memory[(segment.address_space_start + i) as usize] =
+                        u6::new(array.at(i as usize));
                 }
-                for i in 0..segment.metadata().vsize {
-                    self.text_memory[(segment.metadata().start + i) as usize] =
-                        u6::new(segment.tightly_packed_array::<u8>().at(i as usize));
-                }
-            } else if segment.metadata().flags.readable {
-                if segment.metadata().byte_size != 8 {
-                    return Err("Data segment byte is not 8 bits wide".to_string());
-                }
-                for i in 0..segment.metadata().vsize {
-                    self.data_memory[(segment.metadata().start + i) as usize] =
-                        segment.tightly_packed_array::<u8>().at(i as usize);
+            } else if segment.flags.readable {
+                for i in 0..segment.address_space_size {
+                    self.data_memory[(segment.address_space_start + i) as usize] =
+                        segment.serialize().1[i as usize];
                 }
             }
         }
-        self.registers.pc = executable.header.entry_point as u16;
+        self.registers.pc = executable.entry_point() as u16;
         Ok(())
     }
 }

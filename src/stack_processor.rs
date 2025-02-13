@@ -161,10 +161,14 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
         instruction
     }
     fn at_pc_plus(&self, offset: u16) -> u6 {
-        self.text_memory[(self.registers.pc.wrapping_add(offset)) as usize]
+        self.text_memory[self.registers.pc.wrapping_add(offset) as usize]
     }
     fn pc(&self) -> u16 {
         self.registers.pc
+    }
+
+    fn peek_stack(&mut self, n: u8) -> u16 {
+        self.memory_stack().peek_down_by(n * 2)
     }
 
     fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue

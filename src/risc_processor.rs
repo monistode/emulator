@@ -220,6 +220,10 @@ impl Processor<u8, u16, u16, u16> for RiscProcessor {
         self.registers.pc
     }
 
+    fn peek_stack(&mut self, n: u8) -> u16 {
+        self.memory_stack().peek_down_by(n * 2)
+    }
+
     fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
     where
         T: Fn(u16, u16),

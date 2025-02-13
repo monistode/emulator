@@ -1,4 +1,6 @@
-use monistode_binutils::Executable;
+use monistode_binutils::{Architecture, Executable};
+
+use crate::tightly_packed_array;
 
 use super::{
     arithmetic,
@@ -46,8 +48,8 @@ enum Opcode {
     Jl = 0b011110,
     Jle = 0b011111,
     In = 0b100000,
-    // OutImmImm = 0b100001,
-    // OutImmReg = 0b100010,
+    OutImmImm = 0b100001,
+    OutImmReg = 0b100010,
     Nop = 0b100011,
 }
 
@@ -68,6 +70,31 @@ macro_rules! with_immediate {
         immediate = immediate | ($processor.next() as u16) << 6;
         immediate = immediate | ($processor.next() as u16) >> 2;
         $op(immediate)
+    }};
+}
+
+macro_rules! with_two_immediates {
+    ($processor: ident, $args_head:ident, $op:expr) => {{
+        let mut immediate_1 = ($args_head as u16) << 14;
+        immediate_1 = immediate_1 | ($processor.next() as u16) << 6;
+        let intersecting_byte = $processor.next();
+        immediate_1 = immediate_1 | (intersecting_byte as u16) >> 2;
+        let mut immediate_2 = (intersecting_byte as u16) << 14;
+        immediate_2 = immediate_2 | ($processor.next() as u16) << 6;
+        immediate_2 = immediate_2 | ($processor.next() as u16) >> 2;
+        $op(immediate_1, immediate_2)
+    }};
+}
+
+macro_rules! with_immediate_and_register {
+    ($processor: ident, $args_head:ident, $op:expr) => {{
+        let mut immediate = ($args_head as u16) << 14;
+        immediate = immediate | ($processor.next() as u16) << 6;
+        let intersecting_byte = $processor.next();
+        immediate = immediate | (intersecting_byte as u16) >> 2;
+        let mut register = (intersecting_byte << 1) & 0b110;
+        register = register | ($processor.next() >> 7) & 0b1;
+        $op(immediate, register)
     }};
 }
 
@@ -193,7 +220,7 @@ impl Processor<u8, u16, u16, u16> for RiscProcessor {
         self.registers.pc
     }
 
-    fn run_command<T, U>(&mut self, _: T, input: U) -> ProcessorContinue
+    fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
     where
         T: Fn(u16, u16),
         U: Fn(u16) -> u16,
@@ -377,11 +404,32 @@ impl Processor<u8, u16, u16, u16> for RiscProcessor {
                 with_reg_and_immediate!(self, args_head, |register_1, _, _, immediate| self
                     .output_into_register(register_1, input(immediate)))
             }
+            Opcode::OutImmImm => with_two_immediates!(self, args_head, |port, data| {
+                output(port, data);
+                ProcessorContinue::KeepRunning
+            }),
+            Opcode::OutImmReg => with_immediate_and_register!(self, args_head, |port, register| {
+                let Some(data) = self.get_register_value(register) else {
+                    return ProcessorContinue::Error;
+                };
+                output(port, data);
+                ProcessorContinue::KeepRunning
+            }),
             Opcode::Nop => ProcessorContinue::KeepRunning,
         }
     }
 
     fn load_executable(&mut self, executable: &Executable) -> Result<(), String> {
-        unimplemented!()
+        if !matches!(executable.architecture(), Architecture::Risc) {
+            return Err("Executable is not risc architecture".to_string());
+        }
+        for segment in executable.segments() {
+            let array = tightly_packed_array::TightlyPackedArray::new(segment.data.clone(), 8);
+            for i in 0..segment.address_space_size {
+                self.memory[(segment.address_space_start + i) as usize] = array.at(i as usize);
+            }
+        }
+        self.registers.pc = executable.entry_point() as u16;
+        Ok(())
     }
 }

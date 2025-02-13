@@ -168,7 +168,7 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
     }
 
     fn peek_stack(&mut self, n: u8) -> u16 {
-        self.memory_stack().peek_down_by(n * 2)
+        self.register_stack().peek_down_by(n * 2)
     }
 
     fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue

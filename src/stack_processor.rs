@@ -13,7 +13,7 @@ use super::{
 };
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use std::{fs::File, io::Read};
+use std::{fs::File, future::Future, io::Read};
 use ux::u6;
 
 #[derive(Debug, FromPrimitive)]
@@ -171,10 +171,10 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
         self.register_stack().peek_down_by(n * 2)
     }
 
-    fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
+    async fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
     where
-        T: Fn(u16, u16),
-        U: Fn(u16) -> u16,
+        T: Fn(u16, u16) -> Box<dyn Future<Output = ()>>,
+        U: Fn(u16) -> Box<dyn Future<Output = u16>>,
     {
         let next_instruction = self.next();
         let next_instruction_as_enum = match Opcode::from_u8(next_instruction.into()) {
@@ -317,10 +317,18 @@ impl Processor<u6, u16, u16, u16> for StackProcessor {
                 ProcessorContinue::KeepRunning
             }
             Opcode::Nop => ProcessorContinue::KeepRunning,
-            Opcode::Out => with_immediate!(self, |port| output(port, self.register_stack().pop())),
-            Opcode::In => with_immediate!(self, |port| {
-                self.register_stack().push(input(port));
-            }),
+            Opcode::Out => {
+                let port = self.load_immediate();
+                let value = self.register_stack().pop();
+                std::pin::Pin::from(output(port, value)).await;
+                ProcessorContinue::KeepRunning
+            }
+            Opcode::In => {
+                let port = self.load_immediate();
+                self.register_stack()
+                    .push(std::pin::Pin::from(input(port)).await);
+                ProcessorContinue::KeepRunning
+            }
         }
     }
 

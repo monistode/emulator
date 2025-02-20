@@ -1,4 +1,6 @@
-use monistode_binutils::Executable;
+use monistode_binutils::{Architecture, Executable};
+
+use crate::tightly_packed_array;
 
 use super::{
     arithmetic,
@@ -549,6 +551,16 @@ impl Processor<u8, u16, u16, u16> for AccProcessor {
     }
 
     fn load_executable(&mut self, executable: &Executable) -> Result<(), String> {
-        unimplemented!()
+        if !matches!(executable.architecture(), Architecture::Accumulator) {
+            return Err("Executable is not accumulator architecture".to_string());
+        }
+        for segment in executable.segments() {
+            let array = tightly_packed_array::TightlyPackedArray::new(segment.data.clone(), 8);
+            for i in 0..segment.address_space_size {
+                self.memory[(segment.address_space_start + i) as usize] = array.at(i as usize);
+            }
+        }
+        self.registers.pc = executable.entry_point() as u16;
+        Ok(())
     }
 }

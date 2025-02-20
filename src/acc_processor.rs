@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use monistode_binutils::Executable;
 
 use super::{
@@ -268,10 +266,10 @@ impl Processor<u8, u16, u16, u16> for AccProcessor {
         self.memory_stack().peek_down_by(n * 2)
     }
 
-    async fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
+    fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
     where
-        T: Fn(u16, u16) -> Box<dyn Future<Output = ()>>,
-        U: Fn(u16) -> Box<dyn Future<Output = u16>>,
+        T: Fn(u16, u16),
+        U: Fn(u16) -> u16,
     {
         let next_instruction = self.next();
         let next_instruction_as_enum = match Opcode::from_u8(next_instruction.into()) {
@@ -541,16 +539,12 @@ impl Processor<u8, u16, u16, u16> for AccProcessor {
                 }
                 ProcessorContinue::KeepRunning
             }
-            Opcode::In => {
-                let port = self.load_immediate();
-                self.registers.acc = std::pin::Pin::from(input(port)).await;
-                ProcessorContinue::KeepRunning
-            }
-            Opcode::Out => {
-                let port = self.load_immediate();
-                std::pin::Pin::from(output(port, self.registers.acc)).await;
-                ProcessorContinue::KeepRunning
-            }
+            Opcode::In => with_immediate!(self, |port| {
+                self.registers.acc = input(port);
+            }),
+            Opcode::Out => with_immediate!(self, |port| {
+                output(port, self.registers.acc);
+            }),
         }
     }
 

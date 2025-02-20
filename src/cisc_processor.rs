@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use monistode_binutils::Executable;
 
 use super::{
@@ -572,10 +570,10 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
         self.memory_stack().peek_down_by(n * 2)
     }
 
-    async fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
+    fn run_command<T, U>(&mut self, output: T, input: U) -> ProcessorContinue
     where
-        T: Fn(u16, u16) -> Box<dyn Future<Output = ()>>,
-        U: Fn(u16) -> Box<dyn Future<Output = u16>>,
+        T: Fn(u16, u16),
+        U: Fn(u16) -> u16,
     {
         let next_instruction = self.next();
         let next_instruction_as_enum = match Opcode::from_u8(next_instruction.into()) {
@@ -770,65 +768,39 @@ impl Processor<u8, u16, u16, u16> for CiscProcessor {
             }),
 
             Opcode::InRegPort => {
-                let register_id = self.next();
-                let value = std::pin::Pin::from(input(self.load_immediate())).await;
-                match self.save_register(register_id, value) {
-                    Ok(_) => ProcessorContinue::KeepRunning,
-                    Err(_) => ProcessorContinue::Error,
-                }
+                save_to_register!(self, || with_immediate_raw!(self, input))
             }
             Opcode::InRegAdrPort => {
-                let address = match self.load_register() {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let value = std::pin::Pin::from(input(self.load_immediate())).await;
-                self.two_byte_memory().write(address, value);
-                ProcessorContinue::KeepRunning
+                save_to_register_address!(self, || with_immediate_raw!(self, input))
             }
             Opcode::InRegAdrOffPort => {
-                let address = match self.load_register() {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                let offset = self.load_immediate();
-                let value = std::pin::Pin::from(input(self.load_immediate())).await;
-                self.two_byte_memory()
-                    .write(address.wrapping_add(offset), value);
-                ProcessorContinue::KeepRunning
+                save_to_register_address_offset!(self, || with_immediate_raw!(self, input))
             }
             Opcode::OutPortImm => {
-                let port = self.load_immediate();
-                let value = self.load_immediate();
-                std::pin::Pin::from(output(port, value)).await;
-                ProcessorContinue::KeepRunning
+                with_immediate!(self, |port| with_register_value!(self, |immediate| {
+                    output(port, immediate)
+                }))
             }
             Opcode::OutPortReg => {
-                let port = self.load_immediate();
-                let value = match self.load_register() {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                std::pin::Pin::from(output(port, value)).await;
-                ProcessorContinue::KeepRunning
+                with_immediate!(self, |port| with_register_value!(self, |value| output(
+                    port, value
+                )))
             }
             Opcode::OutPortRegAdr => {
-                let port = self.load_immediate();
-                let value = match self.load_register_address() {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                std::pin::Pin::from(output(port, value)).await;
-                ProcessorContinue::KeepRunning
+                with_immediate!(self, |port| with_register_address!(self, |address| output(
+                    port, address
+                )))
             }
             Opcode::OutPortRegAdrOff => {
-                let port = self.load_immediate();
-                let value = match self.load_register_address_offset() {
-                    Some(value) => value,
-                    None => return ProcessorContinue::Error,
-                };
-                std::pin::Pin::from(output(port, value)).await;
-                ProcessorContinue::KeepRunning
+                with_immediate_raw!(self, |port| with_register_address_offset!(self, |value| {
+                    match value {
+                        Some(value) => {
+                            output(port, value);
+                            ProcessorContinue::KeepRunning
+                        }
+                        None => ProcessorContinue::Error,
+                    }
+                }))
             }
             Opcode::Nop => ProcessorContinue::KeepRunning,
         }
